@@ -26,4 +26,10 @@ public class RedisConfig {
         String scriptText = LuaScriptLoader.load("redis/check_and_decr.lua");
         return new DefaultRedisScript<>(scriptText, Long.class);
     }
+
+    @Bean
+    public RedisScript<Long> refundStockScript() {
+        String scriptText = LuaScriptLoader.load("redis/refund_stock.lua");
+        return new DefaultRedisScript<>(scriptText, Long.class);
+    }
 }

@@ -51,7 +51,7 @@ public class AccessControlInterceptor implements HandlerInterceptor {
 
                         if (count > maxCount) {
                             logger.warn("Rate limit exceeded for key: {}. Count: {}", key, count);
-                            response.setStatus(HttpServletResponse.SC_TOO_MANY_REQUESTS);
+                            response.setStatus(429);
                             response.setContentType("application/json");
                             try (OutputStream os = response.getOutputStream()) {
                                 os.write("{\"message\":\"Too many requests - please try again later.\"}".getBytes());

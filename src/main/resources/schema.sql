@@ -28,7 +28,8 @@ CREATE TABLE flash_sale_orders (
     quantity INT NOT NULL,
     order_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(user_id),
-    CONSTRAINT fk_item FOREIGN KEY (item_id) REFERENCES flash_sale_items(item_id)
+    CONSTRAINT fk_item FOREIGN KEY (item_id) REFERENCES flash_sale_items(item_id),
+    CONSTRAINT unique_user_item UNIQUE (user_id, item_id)
 );
 
 -- Indexes for performance
@@ -36,6 +37,20 @@ CREATE INDEX idx_orders_user_id ON flash_sale_orders(user_id);
 CREATE INDEX idx_orders_item_id ON flash_sale_orders(item_id);
 CREATE INDEX idx_orders_user_item ON flash_sale_orders(user_id, item_id);
 
--- Insert some sample data for testing
-INSERT INTO users (username) VALUES ('testuser1'), ('testuser2');
-INSERT INTO flash_sale_items (item_name, total_stock) VALUES ('SuperWidget', 100), ('MegaGadget', 50);
+-- Insert 10,000 test users for simulation
+INSERT INTO users (user_id, username)
+SELECT g, 'user_' || g
+FROM generate_series(1, 10000) g;
+
+-- Update the sequence
+SELECT setval('users_user_id_seq', 10000);
+
+-- Insert sample items
+INSERT INTO flash_sale_items (item_id, item_name, total_stock)
+VALUES 
+(1, 'SuperWidget', 100), 
+(2, 'MegaGadget', 50);
+
+-- Update item sequence
+SELECT setval('flash_sale_items_item_id_seq', 2);
+

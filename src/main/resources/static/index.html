@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High-Concurrency Flash Sale Monitor & Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.15);
+            --accent: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --font-display: 'Outfit', sans-serif;
+            --font-sans: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Abstract Glow Background Elements */
+        body::before {
+            content: '';
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 50%;
+            height: 60%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+            z-index: -1;
+            filter: blur(80px);
+            pointer-events: none;
+        }
+
+        body::after {
+            content: '';
+            position: absolute;
+            bottom: -10%;
+            right: -10%;
+            width: 45%;
+            height: 55%;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%);
+            z-index: -1;
+            filter: blur(80px);
+            pointer-events: none;
+        }
+
+        header {
+            padding: 2rem 4rem;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-section h1 {
+            font-family: var(--font-display);
+            font-size: 1.75rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #a5b4fc 0%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-section p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .system-status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 99px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--success);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        main {
+            flex: 1;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 0 4rem 4rem 4rem;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+            header {
+                padding: 1.5rem 2rem;
+            }
+            main {
+                padding: 0 2rem 2rem 2rem;
+            }
+        }
+
+        /* Glass Cards */
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 1.25rem;
+            padding: 2rem;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .glass-card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            grid-column: span 2;
+        }
+
+        @media (max-width: 1024px) {
+            .stats-grid {
+                grid-column: span 1;
+            }
+        }
+
+        .stat-card {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: var(--primary);
+        }
+
+        .stat-card.accent::after {
+            background-color: var(--accent);
+        }
+
+        .stat-card.success::after {
+            background-color: var(--success);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.1;
+        }
+
+        .stat-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Console Log Styles */
+        .console-container {
+            display: flex;
+            flex-direction: column;
+            height: 350px;
+        }
+
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .console-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .console-terminal {
+            flex: 1;
+            background-color: rgba(5, 7, 12, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            color: #10b981;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Buttons & Forms */
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .input-control {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .input-control:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.06);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        /* Section Titles */
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.5rem;
+        }
+
+        /* Live test metrics grid */
+        .live-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-badge {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .metric-badge.success-badge {
+            border-color: rgba(16, 185, 129, 0.2);
+            background: rgba(16, 185, 129, 0.02);
+        }
+        .metric-badge.conflict-badge {
+            border-color: rgba(245, 158, 11, 0.2);
+            background: rgba(245, 158, 11, 0.02);
+        }
+        .metric-badge.depleted-badge {
+            border-color: rgba(239, 68, 68, 0.2);
+            background: rgba(239, 68, 68, 0.02);
+        }
+
+        .metric-badge .m-val {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .metric-badge.success-badge .m-val { color: var(--success); }
+        .metric-badge.conflict-badge .m-val { color: var(--warning); }
+        .metric-badge.depleted-badge .m-val { color: var(--danger); }
+
+        .metric-badge .m-lbl {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        /* Left column layout */
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 99px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-section">
+            <h1 id="app-title">Flash Sale Control Center</h1>
+            <p>Distributed Write-Back Order API Monitor</p>
+        </div>
+        <div class="system-status-indicator" id="health-indicator">
+            <div class="status-dot"></div>
+            <span id="health-text">SYSTEM HEALTHY</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Left Side: Live Stats and Control Panel -->
+        <div class="left-column">
+            <!-- Stats Row -->
+            <div class="stats-grid">
+                <!-- Stat 1 -->
+                <div class="glass-card stat-card success">
+                    <span class="stat-label">Redis Stock (Active)</span>
+                    <span class="stat-value" id="redis-stock-val">-</span>
+                    <span class="stat-desc" id="item-name-desc">Item: None loaded</span>
+                </div>
+                <!-- Stat 2 -->
+                <div class="glass-card stat-card accent">
+                    <span class="stat-label">Redis Queue Size</span>
+                    <span class="stat-value" id="redis-queue-val">-</span>
+                    <span class="stat-desc">Distributed list orders waiting</span>
+                </div>
+                <!-- Stat 3 -->
+                <div class="glass-card stat-card">
+                    <span class="stat-label">Postgres DB Orders</span>
+                    <span class="stat-value" id="db-orders-val">-</span>
+                    <span class="stat-desc" id="db-stock-desc">Total written bookings</span>
+                </div>
+            </div>
+
+            <!-- Dashboard Control Actions -->
+            <div class="glass-card">
+                <h2 class="section-title">Administrative Actions</h2>
+                <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                    Administer the state of the API nodes, reset database transactions, or pre-heat Redis keys.
+                </p>
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="btn-warmup" onclick="triggerWarmup()">Pre-Heat Redis Cache</button>
+                    <button class="btn btn-danger" id="btn-reset" onclick="triggerReset()">Reset DB & Warm Cache</button>
+                    <button class="btn btn-secondary" id="btn-refresh" onclick="fetchStatus()">Manual Refresh</button>
+                </div>
+            </div>
+
+            <!-- Terminal output logging simulated client operations -->
+            <div class="glass-card console-container">
+                <div class="console-header">
+                    <div class="console-title">
+                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background: #6366f1;"></span>
+                        Live Simulation Output
+                    </div>
+                    <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="clearConsole()">Clear Logs</button>
+                </div>
+                <div class="console-terminal" id="console-terminal">System active. Ready for live concurrency stress test...</div>
+            </div>
+        </div>
+
+        <!-- Right Side: Live Load Testing Simulator -->
+        <div class="glass-card">
+            <h2 class="section-title">Concurrent Load Generator</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+                Fire hundreds of concurrent purchases from the browser to stress-test Redis Lua atomicity, user-level double buy detection, and queueing flow.
+            </p>
+
+            <div class="form-group">
+                <label for="input-item-id">Item ID</label>
+                <input type="number" id="input-item-id" class="input-control" value="1">
+            </div>
+
+            <div class="form-group">
+                <label for="input-total-requests">Concurrency Wave Size</label>
+                <input type="number" id="input-total-requests" class="input-control" value="100">
+            </div>
+
+            <div class="form-group">
+                <label for="sim-mode">Simulation Pattern</label>
+                <select id="sim-mode" class="input-control" style="background-color: #0f172a;">
+                    <option value="unique">100% Unique Users (Race for limited slots)</option>
+                    <option value="duplicate">Single User Repeating Requests (Verify Idempotency)</option>
+                    <option value="mixed">Mixed Wave (70% Unique, 30% Duplicates)</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary" id="btn-run-simulation" style="width: 100%; margin-top: 1rem; padding: 1rem;" onclick="runSimulation()">
+                Launch Simulation Attack
+            </button>
+
+            <div class="section-title" style="margin-top: 2.5rem; font-size: 1.1rem; margin-bottom: 1rem;">Simulation Results</div>
+            
+            <div class="live-metrics-grid">
+                <div class="metric-badge success-badge">
+                    <div class="m-val" id="metrics-accepted">0</div>
+                    <div class="m-lbl">202 Accepted</div>
+                </div>
+                <div class="metric-badge conflict-badge">
+                    <div class="m-val" id="metrics-conflict">0</div>
+                    <div class="m-lbl">409 Duplicate</div>
+                </div>
+                <div class="metric-badge depleted-badge">
+                    <div class="m-val" id="metrics-depleted">0</div>
+                    <div class="m-lbl">429 Sold Out</div>
+                </div>
+                <div class="metric-badge">
+                    <div class="m-val" id="metrics-latency">0 ms</div>
+                    <div class="m-lbl">Avg Latency</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE = '/api/sale';
+        let isSimulating = false;
+
+        // Fetch API metrics and status periodically
+        async function fetchStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/status`);
+                if (!response.ok) throw new Error('API server returned error');
+                
+                const res = await response.json();
+                if (res.success && res.data) {
+                    const status = res.data;
+                    document.getElementById('redis-queue-val').innerText = status.queueSize;
+                    document.getElementById('db-orders-val').innerText = status.totalOrdersInDb;
+
+                    const item = status.items && status.items[0];
+                    if (item) {
+                        document.getElementById('redis-stock-val').innerText = item.redisStock;
+                        document.getElementById('item-name-desc').innerText = `${item.itemName} (DB Default: ${item.dbStock})`;
+                    } else {
+                        document.getElementById('redis-stock-val').innerText = '0';
+                        document.getElementById('item-name-desc').innerText = 'No items in database';
+                    }
+
+                    // Update system health indicator
+                    document.getElementById('health-indicator').style.borderColor = 'rgba(16, 185, 129, 0.2)';
+                    document.getElementById('health-indicator').style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+                    document.getElementById('health-text').innerText = 'SYSTEM HEALTHY';
+                    document.getElementById('health-text').style.color = 'var(--success)';
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('health-indicator').style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                document.getElementById('health-indicator').style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                document.getElementById('health-text').innerText = 'SYSTEM OFFLINE';
+                document.getElementById('health-text').style.color = 'var(--danger)';
+            }
+        }
+
+        async function triggerWarmup() {
+            logToTerminal('Initializing inventory pre-heating in Redis cache...');
+            try {
+                const response = await fetch(`${API_BASE}/admin/warmup`, { method: 'POST' });
+                const res = await response.json();
+                if (res.success) {
+                    logToTerminal('SUCCESS: Cache pre-heating complete.');
+                } else {
+                    logToTerminal(`ERROR: Warmup failed: ${res.message}`);
+                }
+                fetchStatus();
+            } catch (err) {
+                logToTerminal(`ERROR: Connection issue: ${err.message}`);
+            }
+        }
+
+        async function triggerReset() {
+            logToTerminal('Triggering administrator system reset...');
+            try {
+                const response = await fetch(`${API_BASE}/admin/reset`, { method: 'POST' });
+                const res = await response.json();
+                if (res.success) {
+                    logToTerminal('SUCCESS: Database orders wiped and Redis cache refreshed.');
+                } else {
+                    logToTerminal(`ERROR: Reset failed: ${res.message}`);
+                }
+                fetchStatus();
+            } catch (err) {
+                logToTerminal(`ERROR: Connection issue: ${err.message}`);
+            }
+        }
+
+        // Simulated HTTP Client
+        function logToTerminal(msg) {
+            const term = document.getElementById('console-terminal');
+            const now = new Date().toLocaleTimeString();
+            term.innerText = `[${now}] ${msg}\n` + term.innerText;
+        }
+
+        function clearConsole() {
+            document.getElementById('console-terminal').innerText = 'Logs cleared.';
+        }
+
+        // Live Load simulation
+        async function runSimulation() {
+            if (isSimulating) return;
+
+            const itemId = parseInt(document.getElementById('input-item-id').value);
+            const totalRequests = parseInt(document.getElementById('input-total-requests').value);
+            const mode = document.getElementById('sim-mode').value;
+
+            if (isNaN(itemId) || isNaN(totalRequests) || totalRequests <= 0) {
+                alert('Please enter valid inputs');
+                return;
+            }
+
+            isSimulating = true;
+            document.getElementById('btn-run-simulation').disabled = true;
+            document.getElementById('btn-run-simulation').innerText = 'RUNNING ATTACK CONCURRENCY...';
+
+            logToTerminal(`LAUNCHING: Wave of ${totalRequests} concurrent request tasks on Item ${itemId}...`);
+
+            // Initialize results structure
+            let successCount = 0;
+            let conflictCount = 0;
+            let depletedCount = 0;
+            let otherErrorCount = 0;
+            let totalLatencies = 0;
+
+            document.getElementById('metrics-accepted').innerText = '0';
+            document.getElementById('metrics-conflict').innerText = '0';
+            document.getElementById('metrics-depleted').innerText = '0';
+            document.getElementById('metrics-latency').innerText = '0 ms';
+
+            // Generate user requests structure
+            const promises = [];
+            const timestampStart = performance.now();
+
+            for (let i = 0; i < totalRequests; i++) {
+                let userId;
+                if (mode === 'unique') {
+                    userId = 1000 + i; // Each request gets a unique user ID
+                } else if (mode === 'duplicate') {
+                    userId = 9999;     // All requests have the identical user ID (idempotency check)
+                } else {
+                    // Mixed: 70% unique, 30% duplicate
+                    if (Math.random() < 0.3) {
+                        userId = 8888; // Duplicate user
+                    } else {
+                        userId = 2000 + i; // Unique user
+                    }
+                }
+
+                // Fire async request task
+                promises.push(
+                    (async () => {
+                        const start = performance.now();
+                        try {
+                            const res = await fetch(`${API_BASE}/buy`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId, itemId, quantity: 1 })
+                            });
+                            
+                            const end = performance.now();
+                            const latency = end - start;
+                            totalLatencies += latency;
+
+                            if (res.status === 202) {
+                                successCount++;
+                            } else if (res.status === 409) {
+                                conflictCount++;
+                            } else if (res.status === 429) {
+                                depletedCount++;
+                            } else {
+                                otherErrorCount++;
+                            }
+                        } catch (err) {
+                            otherErrorCount++;
+                        }
+                    })()
+                );
+            }
+
+            // Await execution block concurrently
+            await Promise.all(promises);
+            const timestampEnd = performance.now();
+            const totalDuration = timestampEnd - timestampStart;
+
+            isSimulating = false;
+            document.getElementById('btn-run-simulation').disabled = false;
+            document.getElementById('btn-run-simulation').innerText = 'Launch Simulation Attack';
+
+            // Render live stats
+            document.getElementById('metrics-accepted').innerText = successCount;
+            document.getElementById('metrics-conflict').innerText = conflictCount;
+            document.getElementById('metrics-depleted').innerText = depletedCount;
+            document.getElementById('metrics-latency').innerText = Math.round(totalLatencies / totalRequests) + ' ms';
+
+            logToTerminal(`WAVE DONE: Sent ${totalRequests} HTTP requests in ${Math.round(totalDuration)} ms. Successes (202): ${successCount}, Duplicates (409): ${conflictCount}, Depleted (429): ${depletedCount}, Errors: ${otherErrorCount}`);
+
+            // Periodically refresh data after simulation completes
+            let pollCounter = 0;
+            const poller = setInterval(() => {
+                fetchStatus();
+                pollCounter++;
+                if (pollCounter >= 5) clearInterval(poller); // stop polling after 5s
+            }, 1000);
+        }
+
+        // Initialize status polling
+        fetchStatus();
+        setInterval(fetchStatus, 3000); // refresh every 3 seconds
+    </script>
+</body>
+</html>
